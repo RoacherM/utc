@@ -20,5 +20,7 @@ python train.py
 **Testing:**
 
 ```python
-python test.py --inputs="may first"
+python test.py --spoken_dates "may first" "dec twelfth"
+
+## [(array([0, 0, 0, 0, 0, 5, 0, 1]), 'may one'), (array([0, 0, 0, 0, 1, 2, 1, 2]), 'dec twelve')]
 ```
