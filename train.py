@@ -4,9 +4,10 @@ Date: 2023-08-18 00:58:22
 FilePath: /exercises/models/utc/train.py
 Description: 
 """
+import argparse
 
 import torch
-from losses import cross_entropy_loss, masked_cross_entropy_loss
+from losses import cross_entropy_loss
 from model import DateConversionModelv2
 from pipe import Trainer
 from rich import print
@@ -60,37 +61,45 @@ class DateDataset(Dataset):
 
 def main():
     # 参数，后续改为从argparser中读取
-    max_len = 32
-    batch_size = 128
-    device = "cuda:0" if torch.cuda.is_available() else "cpu"
-    epoch = 10
-    step = 200
-    lr = 2e-5
-    temp_dir = "./utc_ce2_xlmr_small_dropout"
-    pretrained_model_name = "nreimers/mMiniLMv2-L6-H384-distilled-from-XLMR-Large"
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--max_len", type=int, default=32, help="Maximum sequence length.")
+    parser.add_argument("--batch_size", type=int, default=128, help="Batch size.")
+    parser.add_argument("--device", default="cuda:0" if torch.cuda.is_available() else "cpu", help="Device to use.")
+    parser.add_argument("--epoch", type=int, default=10, help="Number of training epochs.")
+    parser.add_argument("--step", type=int, default=200, help="Step size.")
+    parser.add_argument("--lr", type=float, default=2e-5, help="Learning rate.")
+    parser.add_argument("--temp_dir", default="./utc_ce_small_att", help="Temporary directory path.")
+    parser.add_argument(
+        "--pretrained_model_name",
+        default="prajjwal1/bert-small",
+        help="Name of the pretrained model.",
+    )
+    parser.add_argument("--dataset", type=str, default="./datetime.tsv")
+
+    args = parser.parse_args()
 
     print(f"*******Prepare Dataset*********")
-    tokenizer = AutoTokenizer.from_pretrained(pretrained_model_name)
+    tokenizer = AutoTokenizer.from_pretrained(args.pretrained_model_name)
 
-    train, test = load_dataset("./datetime2.tsv")
+    train, test = load_dataset(args.dataset)
     print(f"top3 samples: {test[:3]}")
 
-    trainset = DateDataset(train, tokenizer, max_len)
-    testset = DateDataset(test, tokenizer, max_len)
+    trainset = DateDataset(train, tokenizer, args.max_len)
+    testset = DateDataset(test, tokenizer, args.max_len)
     print("top3 samples for inputs", testset[:3])
 
-    train_dataloader = DataLoader(trainset, batch_size=batch_size, shuffle=True)
-    test_dataloader = DataLoader(testset, batch_size=batch_size, shuffle=False)
+    train_dataloader = DataLoader(trainset, batch_size=args.batch_size, shuffle=True)
+    test_dataloader = DataLoader(testset, batch_size=args.batch_size, shuffle=False)
 
     print(f"*******Load Model*********")
     # '11 nov 2023'->YYYYMMDD，其中Y/M/D在为[0-9]
-    model = DateConversionModelv2(pretrained_model_name, 10, 8, tokenizer.cls_token_id)
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+    model = DateConversionModelv2(args.pretrained_model_name, 10, 8, tokenizer.cls_token_id)
+    optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
     scheduler = get_linear_schedule_with_warmup(
-        optimizer, num_warmup_steps=step // 5, num_training_steps=len(train_dataloader) * epoch
+        optimizer, num_warmup_steps=args.step // 5, num_training_steps=len(train_dataloader) * args.epoch
     )
     # loss_function = masked_cross_entropy_loss  # 请根据你的实际需求选择或定制损失函数
-    loss_function = cross_entropy_loss  # 加了teacher forcing后，感觉不太需要用masked_cross_entropy # update: 确实不太需要
+    loss_function = cross_entropy_loss  # 加了teacher forcing不太需要用masked_cross_entropy
     metrics = datetime_accuracy
 
     # 初始化训练器
@@ -100,16 +109,16 @@ def main():
         scheduler=scheduler,
         loss_function=loss_function,
         metrics=metrics,
-        epoch=epoch,
-        step=step,
+        epoch=args.epoch,
+        step=args.step,
         train_dataloader=train_dataloader,
         test_dataloader=test_dataloader,
-        device=device,
-        checkpoint_dir=temp_dir,
+        device=args.device,
+        checkpoint_dir=args.temp_dir,
     )
 
     print("*******Training*********")
-    trainer.train_epoch(checkpoint_path=temp_dir)
+    trainer.train_epoch(checkpoint_path=args.temp_dir)
 
 
 if __name__ == "__main__":

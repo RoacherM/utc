@@ -1,0 +1,7 @@
+torch
+babel
+rich
+numpy
+transformers
+sklearn
+matplotlib

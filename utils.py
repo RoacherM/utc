@@ -17,9 +17,6 @@ def constrained_decoding(predictions):
 
     decoded_predictions = predictions
 
-    # 年份：这里不需要进行太多的约束，因为假设范围是1000-9999
-    # 但如果有需要，你可以在此处添加逻辑
-
     # 月份
     month_predictions = decoded_predictions[:, 4:6]
     months = month_predictions[:, 0] * 10 + month_predictions[:, 1]
